@@ -246,34 +246,45 @@ jobs:
       with:
         key: build-kernel-${{ env.DEVICE }}${{ env.UPLOADNAME }}
         max-size: 2G
-
+        
     - name: Build kernel
-      run: |
-        cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
-        export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang/bin:$PATH
-        export KBUILD_BUILD_HOST=${{ env.BUILDER_HOST }}
-        export KBUILD_BUILD_USER=$(echo ${{ github.actor }} | tr A-Z a-z)
-        if [ ! -z ${{ env.KSU_EXPECTED_SIZE }} ] && [ ! -z ${{ env.KSU_EXPECTED_HASH }} ]; then
-          export KSU_EXPECTED_SIZE=${{ env.KSU_EXPECTED_SIZE }}
-          export KSU_EXPECTED_HASH=${{ env.KSU_EXPECTED_HASH }}
-        fi
-        if [ ${{ env.ENABLE_CLANG }} = true ]; then
-          make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }} ${{ env.KERNEL_CONFIG }}
-          if [ ${{ env.ENABLE_CCACHE }} = true ]; then
-            make -j$(nproc --all) CC="ccache clang" O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }}
-          else
-            make -j$(nproc --all) CC=clang O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }}
-          fi
-        else
-          make -j$(nproc --all) CC=gcc O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }} ${{ env.KERNEL_CONFIG }}
-          if [ ${{ env.ENABLE_CCACHE }} = true ]; then
-            make -j$(nproc --all) CC="ccache gcc" O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }}
-          else
-            make -j$(nproc --all) CC=gcc O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} ${{ env.GCC_64 }} ${{ env.GCC_32 }}
-          fi
-        fi
+    run: |
+     cd $GITHUB_WORKSPACE/kernel_workspace/android-kernel
+     export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang/bin:$PATH
+     export KBUILD_BUILD_HOST=${{ env.BUILDER_HOST }}
+     export KBUILD_BUILD_USER=$(echo ${{ github.actor }} | tr A-Z a-z)
+     export CLANG_TRIPLE=aarch64-linux-gnu-
+     export CROSS_COMPILE=aarch64-linux-android-
 
-    - name: Checking the kernel compilation product
+     if [ ! -z ${{ env.KSU_EXPECTED_SIZE }} ] && [ ! -z ${{ env.KSU_EXPECTED_HASH }} ]; then
+      export KSU_EXPECTED_SIZE=${{ env.KSU_EXPECTED_SIZE }}
+      export KSU_EXPECTED_HASH=${{ env.KSU_EXPECTED_HASH }}
+     fi
+
+     if [ "${{ env.ENABLE_CLANG }}" = "true" ]; then
+      make -j$(nproc --all) CC=clang CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE \
+        O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} \
+        ${{ env.GCC_64 }} ${{ env.GCC_32 }} ${{ env.KERNEL_CONFIG }}
+
+      if [ "${{ env.ENABLE_CCACHE }}" = "true" ]; then
+        make -j$(nproc --all) CC="ccache clang" CLANG_TRIPLE=$CLANG_TRIPLE CROSS_COMPILE=$CROSS_COMPILE \
+          O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} \
+          ${{ env.GCC_64 }} ${{ env.GCC_32 }}
+      fi
+     else
+      make -j$(nproc --all) CC=gcc CROSS_COMPILE=$CROSS_COMPILE \
+        O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} \
+        ${{ env.GCC_64 }} ${{ env.GCC_32 }} ${{ env.KERNEL_CONFIG }}
+
+      if [ "${{ env.ENABLE_CCACHE }}" = "true" ]; then
+        make -j$(nproc --all) CC="ccache gcc" CROSS_COMPILE=$CROSS_COMPILE \
+          O=out ARCH=${{ env.ARCH }} ${{ env.TC_CUSTOM_CMDS }} ${{ env.EXTRA_CMDS }} \
+          ${{ env.GCC_64 }} ${{ env.GCC_32 }}
+      fi
+     fi
+
+    
+     - name: Checking the kernel compilation product
       run: |
        cd $GITHUB_WORKSPACE/kernel_workspace
        if [ -f android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }} ]; then
@@ -291,7 +302,7 @@ jobs:
            fi
        fi
   
-    - name: Setting up AnyKenrel3
+     - name: Setting up AnyKernel3
       if: env.CHECK_FILE_IS_OK == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
@@ -312,7 +323,7 @@ jobs:
            exit 1
         fi
 
-    - name: Setting up KernelSU boot image
+     - name: Setting up KernelSU boot image
       if: env.HAVE_KERNELSU_SOURCE_BOOT_IMAGE == 'true' && env.CHECK_FILE_IS_OK == 'true'
       run: |
         cd $GITHUB_WORKSPACE/kernel_workspace
@@ -343,7 +354,7 @@ jobs:
             exit 1
         fi
 
-    - name: Upload ${{ env.KERNEL_IMAGE_NAME }}
+     - name: Upload ${{ env.KERNEL_IMAGE_NAME }}
       if: env.CHECK_FILE_IS_OK == 'true'
       uses: actions/upload-artifact@v3
       with:
@@ -351,7 +362,7 @@ jobs:
         path: kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot/${{ env.KERNEL_IMAGE_NAME }}
         if-no-files-found: error
 
-    - name: Upload AnyKernel3
+     - name: Upload AnyKernel3
       if: env.CHECK_FILE_IS_OK == 'true' && env.AK3_IS_OK == 'true'
       uses: actions/upload-artifact@v3
       with:
@@ -359,7 +370,7 @@ jobs:
         path: kernel_workspace/AnyKernel3/AnyKernel3.zip
         if-no-files-found: error
 
-    - name: Upload DTBO image
+     - name: Upload DTBO image
       if: env.CHECK_DTBO_IS_OK == 'true'
       uses: actions/upload-artifact@v3
       with:
@@ -367,7 +378,7 @@ jobs:
         path: kernel_workspace/android-kernel/out/arch/${{ env.ARCH }}/boot/dtbo.img
         if-no-files-found: error
 
-    - name: Upload KernelSU boot image
+     - name: Upload KernelSU boot image
       if: env.MAKE_KERNELSU_BOOT_IMAGE_IS_OK == 'true'
       uses: actions/upload-artifact@v3
       with:
@@ -375,7 +386,7 @@ jobs:
         path: kernel_workspace/bootimg_tmp/boot-kernelsu.img
         if-no-files-found: error
 
-    - name: Release
+     - name: Release
       uses: softprops/action-gh-release@master
       if: github.event.inputs.release == 'true'
       with:
