@@ -1,4 +1,4 @@
-name: Build example
+name: Build kernel a20s
 on:
   push:
   pull_request:
@@ -84,7 +84,7 @@ jobs:
     - name: Set Swap to 10GB
       uses: pierotofy/set-swap-space@master
       with:
-        swap-size-gb: 10
+        swap-size-gb: 8
 
     - name: Download AOSP Clang
       if: env.ENABLE_CLANG == 'true' && env.USE_AOSP_CLANG == 'true' && env.USE_CUSTOM_CLANG == 'false'
